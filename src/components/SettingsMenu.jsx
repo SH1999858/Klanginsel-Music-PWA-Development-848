@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
+import KIKunstLogo from './KIKunstLogo';
 
 const { FiSettings, FiInfo, FiX, FiShuffle } = FiIcons;
 
@@ -74,16 +75,24 @@ const SettingsMenu = ({ isShuffleEnabled, setIsShuffleEnabled }) => {
                 className="w-full px-4 py-3 text-left hover:bg-[#333333] transition-colors duration-200 flex items-center justify-between"
               >
                 <div className="flex items-center space-x-3">
-                  <SafeIcon icon={FiShuffle} className={`text-lg ${isShuffleEnabled ? 'text-[#d4a076]' : 'text-[#a09a92]'}`} />
+                  <SafeIcon
+                    icon={FiShuffle}
+                    className={`text-lg ${isShuffleEnabled ? 'text-[#d4a076]' : 'text-[#a09a92]'}`}
+                  />
                   <span className="text-[#e0d6cc] font-medium">Zufallswiedergabe aktivieren</span>
                 </div>
-                <div className={`w-10 h-5 rounded-full relative ${isShuffleEnabled ? 'bg-[#d4a076]' : 'bg-[#444444]'} transition-colors duration-300`}>
-                  <div 
-                    className={`absolute top-0.5 ${isShuffleEnabled ? 'right-0.5' : 'left-0.5'} w-4 h-4 bg-[#e0d6cc] rounded-full transition-all duration-300`}
+                <div
+                  className={`w-10 h-5 rounded-full relative ${
+                    isShuffleEnabled ? 'bg-[#d4a076]' : 'bg-[#444444]'
+                  } transition-colors duration-300`}
+                >
+                  <div
+                    className={`absolute top-0.5 ${
+                      isShuffleEnabled ? 'right-0.5' : 'left-0.5'
+                    } w-4 h-4 bg-[#e0d6cc] rounded-full transition-all duration-300`}
                   />
                 </div>
               </button>
-              
               <button
                 onClick={handleAboutClick}
                 className="w-full px-4 py-3 text-left hover:bg-[#333333] transition-colors duration-200 flex items-center space-x-3"
@@ -134,11 +143,14 @@ const SettingsMenu = ({ isShuffleEnabled, setIsShuffleEnabled }) => {
                 </div>
 
                 {/* App Title and Version */}
-                <h2 className="text-xl font-semibold text-[#e0d6cc] mb-1">
-                  Klanginsel
-                </h2>
+                <h2 className="text-xl font-semibold text-[#e0d6cc] mb-1">Klanginsel</h2>
                 <div className="inline-block px-3 py-1 bg-[#d4a076] text-[#1a1a1a] rounded-full font-bold text-sm mb-4">
                   Version 1.2
+                </div>
+
+                {/* KI-Kunst Logo */}
+                <div className="mb-4">
+                  <KIKunstLogo />
                 </div>
 
                 {/* About Text */}

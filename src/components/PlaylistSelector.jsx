@@ -2,12 +2,16 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
+import KIKunstLogo from './KIKunstLogo';
 
 const { FiMusic, FiWaves } = FiIcons;
 
 const PlaylistSelector = ({ playlists, onSelect }) => {
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] p-6">
+      {/* KI-Kunst Logo Component */}
+      <KIKunstLogo />
+      
       <div className="space-y-5 w-full max-w-sm mt-4">
         <motion.p
           initial={{ opacity: 0, y: -10 }}
@@ -17,7 +21,7 @@ const PlaylistSelector = ({ playlists, onSelect }) => {
         >
           Choose your sound journey
         </motion.p>
-        
+
         {Object.entries(playlists).map(([key, playlist], index) => (
           <motion.button
             key={key}
@@ -30,16 +34,13 @@ const PlaylistSelector = ({ playlists, onSelect }) => {
             className="w-full h-18 bg-[#212121] rounded-xl border border-[#333333] transition-all duration-300 flex items-center justify-between px-5 group shadow-md"
           >
             <div className="flex items-center space-x-4">
-              <div 
+              <div
                 className="w-10 h-10 rounded-full flex items-center justify-center shadow-inner"
-                style={{ 
-                  backgroundColor: '#1f1f1f',
-                  border: `2px solid ${playlist.color}40` 
-                }}
+                style={{ backgroundColor: '#1f1f1f', border: `2px solid ${playlist.color}40` }}
               >
-                <SafeIcon 
-                  icon={key === 'chillout' ? FiWaves : FiMusic} 
-                  className="text-lg" 
+                <SafeIcon
+                  icon={key === 'chillout' ? FiWaves : FiMusic}
+                  className="text-lg"
                   style={{ color: playlist.color }}
                 />
               </div>
@@ -47,10 +48,7 @@ const PlaylistSelector = ({ playlists, onSelect }) => {
                 {playlist.name}
               </span>
             </div>
-            <motion.div
-              whileHover={{ x: 5 }}
-              transition={{ duration: 0.2 }}
-            >
+            <motion.div whileHover={{ x: 5 }} transition={{ duration: 0.2 }}>
               <SafeIcon
                 icon={FiIcons.FiChevronRight}
                 className="text-[#a09a92] group-hover:text-[#e0d6cc] text-lg"

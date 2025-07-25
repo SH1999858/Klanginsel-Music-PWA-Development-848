@@ -34,7 +34,7 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
       return (currentIndex + 1) % trackCount;
     }
 
-    if (shuffleHistory.length === 0) {
+    if (shuffleHistory.length === 0 || shuffleHistory.length !== trackCount) {
       const newOrder = generateShuffleOrder(trackCount);
       setShuffleHistory(newOrder);
       setCurrentShuffleIndex(0);
@@ -52,7 +52,7 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
       return currentIndex === 0 ? trackCount - 1 : currentIndex - 1;
     }
 
-    if (shuffleHistory.length === 0) {
+    if (shuffleHistory.length === 0 || shuffleHistory.length !== trackCount) {
       const newOrder = generateShuffleOrder(trackCount);
       setShuffleHistory(newOrder);
       setCurrentShuffleIndex(0);
@@ -90,7 +90,6 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
           widgetRef.current.bind(window.SC.Widget.Events.READY, () => {
             console.log('SoundCloud widget ready');
             setIsWidgetReady(true);
-            setIsLoading(false);
 
             // Get all tracks in the playlist first
             widgetRef.current.getSounds((sounds) => {
@@ -109,11 +108,19 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
                   const shuffleOrder = generateShuffleOrder(tracks.length);
                   setShuffleHistory(shuffleOrder);
                   setCurrentShuffleIndex(0);
+                  
                   // Jump to first shuffled track
                   const firstTrack = shuffleOrder[0];
                   widgetRef.current.skip(firstTrack);
                   setCurrentTrack(firstTrack + 1);
-                  setTrackTitle(tracks[firstTrack].title);
+                  
+                  if (tracks[firstTrack]) {
+                    setTrackTitle(tracks[firstTrack].title);
+                  } else {
+                    // Fallback if shuffle produces invalid index
+                    setTrackTitle(tracks[0].title);
+                    setCurrentTrack(1);
+                  }
                 } else {
                   // Get current track info for normal mode
                   widgetRef.current.getCurrentSound((sound) => {
@@ -130,10 +137,13 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
                     }
                   });
                 }
+                
+                setIsLoading(false);
               } else {
                 // Fallback if no tracks found
                 setTrackTitle(`${playlist.name} Playlist`);
                 setCurrentTrack(1);
+                setIsLoading(false);
               }
             });
           });
@@ -152,6 +162,14 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
                     const currentIndex = sounds.findIndex(s => s.id === sound.id);
                     if (currentIndex !== -1) {
                       setCurrentTrack(currentIndex + 1);
+                      
+                      // Update shuffle index if in shuffle mode
+                      if (isShuffleEnabled && shuffleHistory.length > 0) {
+                        const shuffleIndex = shuffleHistory.indexOf(currentIndex);
+                        if (shuffleIndex !== -1) {
+                          setCurrentShuffleIndex(shuffleIndex);
+                        }
+                      }
                     }
                   }
                 });
@@ -190,6 +208,17 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
               });
             }
           });
+          
+          // Handle errors
+          widgetRef.current.bind(window.SC.Widget.Events.ERROR, () => {
+            console.error('SoundCloud widget error');
+            setIsLoading(false);
+            setTrackTitle(`${playlist.name} Playlist`);
+          });
+        } else {
+          console.error('SoundCloud widget not available');
+          setIsLoading(false);
+          setTrackTitle(`${playlist.name} Playlist`);
         }
       } catch (error) {
         console.error('Error initializing SoundCloud widget:', error);
@@ -217,16 +246,35 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
         wakeLockRef.current = null;
       }
     };
-  }, [playlist.url, playlist.name, setTrackList]);
+  }, [playlist.url, playlist.name, setTrackList, isShuffleEnabled]);
 
-  // Update shuffle setting when it changes
+  // Update shuffle order when shuffle mode changes
   useEffect(() => {
     if (isWidgetReady && widgetRef.current && trackList.length > 0) {
       if (isShuffleEnabled) {
         // Generate new shuffle order when enabling shuffle
         const shuffleOrder = generateShuffleOrder(trackList.length);
         setShuffleHistory(shuffleOrder);
+        
+        // Start from beginning of shuffle order
         setCurrentShuffleIndex(0);
+        const firstTrack = shuffleOrder[0];
+        
+        // Only change track if widget is ready and not currently loading
+        if (!isLoading) {
+          try {
+            widgetRef.current.skip(firstTrack);
+            setCurrentTrack(firstTrack + 1);
+            
+            // Update track title immediately
+            if (trackList[firstTrack]) {
+              setTrackTitle(trackList[firstTrack].title);
+            }
+          } catch (error) {
+            console.error('Error setting first shuffle track:', error);
+          }
+        }
+        
         console.log('Shuffle mode enabled, new order:', shuffleOrder);
       } else {
         // Clear shuffle history when disabling shuffle
@@ -235,13 +283,13 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
         console.log('Shuffle mode disabled');
       }
     }
-  }, [isShuffleEnabled, isWidgetReady, trackList.length]);
+  }, [isShuffleEnabled, isWidgetReady, trackList.length, isLoading]);
 
   // Setup Media Session API
   useEffect(() => {
     if ('mediaSession' in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({
-        title: trackTitle,
+        title: trackTitle || `${playlist.name} Playlist`,
         artist: 'Klanginsel',
         album: `${playlist.name} Playlist`,
         artwork: [
@@ -278,8 +326,14 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
   };
 
   const handleNext = () => {
-    if (!isWidgetReady || !widgetRef.current || trackList.length === 0) {
-      console.log('Widget not ready for next or no tracks available');
+    if (!isWidgetReady || !widgetRef.current) {
+      console.log('Widget not ready for next');
+      return;
+    }
+    
+    // Fallback to default if no tracks
+    if (trackList.length === 0) {
+      console.log('No tracks available, cannot skip');
       return;
     }
 
@@ -295,15 +349,36 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
       // Update track title immediately
       if (trackList[nextIndex]) {
         setTrackTitle(trackList[nextIndex].title);
+      } else {
+        // Fallback if next track is invalid
+        setTrackTitle(`${playlist.name} Playlist`);
       }
     } catch (error) {
       console.error('Error skipping to next track:', error);
+      // Fallback to first track on error
+      try {
+        widgetRef.current.skip(0);
+        setCurrentTrack(1);
+        if (trackList[0]) {
+          setTrackTitle(trackList[0].title);
+        } else {
+          setTrackTitle(`${playlist.name} Playlist`);
+        }
+      } catch (e) {
+        console.error('Error in fallback skip:', e);
+      }
     }
   };
 
   const handlePrevious = () => {
-    if (!isWidgetReady || !widgetRef.current || trackList.length === 0) {
-      console.log('Widget not ready for previous or no tracks available');
+    if (!isWidgetReady || !widgetRef.current) {
+      console.log('Widget not ready for previous');
+      return;
+    }
+    
+    // Fallback to default if no tracks
+    if (trackList.length === 0) {
+      console.log('No tracks available, cannot go to previous');
       return;
     }
 
@@ -319,14 +394,35 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
       // Update track title immediately
       if (trackList[prevIndex]) {
         setTrackTitle(trackList[prevIndex].title);
+      } else {
+        // Fallback if previous track is invalid
+        setTrackTitle(`${playlist.name} Playlist`);
       }
     } catch (error) {
       console.error('Error skipping to previous track:', error);
+      // Fallback to first track on error
+      try {
+        widgetRef.current.skip(0);
+        setCurrentTrack(1);
+        if (trackList[0]) {
+          setTrackTitle(trackList[0].title);
+        } else {
+          setTrackTitle(`${playlist.name} Playlist`);
+        }
+      } catch (e) {
+        console.error('Error in fallback skip:', e);
+      }
     }
   };
 
   const handleTrackSelect = (index) => {
-    if (!isWidgetReady || !widgetRef.current || !trackList[index]) {
+    if (!isWidgetReady || !widgetRef.current) {
+      return;
+    }
+    
+    // Validate track exists
+    if (!trackList[index]) {
+      console.error('Invalid track index:', index);
       return;
     }
 
@@ -357,7 +453,7 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
     setShowTrackList(prev => !prev);
   };
 
-  // Ensure we always have a valid track title
+  // Ensure we always have a valid track title and number
   const displayTitle = trackTitle || `${playlist.name} Playlist`;
   const displayTrackNumber = Math.max(1, Math.min(currentTrack, trackList.length || 1));
 
