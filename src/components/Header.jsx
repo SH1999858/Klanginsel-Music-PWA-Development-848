@@ -2,30 +2,35 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import SafeIcon from '../common/SafeIcon';
 import { FiArrowLeft, FiHome } from 'react-icons/fi';
+import SettingsMenu from './SettingsMenu';
 
 const Header = ({ showBackButton, onBack, showLogo }) => {
   return (
     <motion.header
-      className="w-full flex items-center justify-center p-4 relative border-b border-[#333333]"
+      className="w-full flex items-center justify-between p-4 border-b border-[#333333]"
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      {showBackButton && (
-        <motion.button
-          onClick={onBack}
-          className="absolute left-4 p-2 hover:bg-[#333333] rounded-full transition-colors duration-200 shadow-sm"
-          whileTap={{ scale: 0.95 }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          title="Zurück zur Startseite"
-        >
-          <SafeIcon icon={FiHome} className="text-xl text-[#e0d6cc]" />
-        </motion.button>
-      )}
-      
+      {/* Left Side - Back Button */}
+      <div className="flex items-center">
+        {showBackButton && (
+          <motion.button
+            onClick={onBack}
+            className="p-2 hover:bg-[#333333] rounded-full transition-colors duration-200 shadow-sm"
+            whileTap={{ scale: 0.95 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            title="Zurück zur Startseite"
+          >
+            <SafeIcon icon={FiHome} className="text-xl text-[#e0d6cc]" />
+          </motion.button>
+        )}
+      </div>
+
+      {/* Center - Logo */}
       {showLogo && (
-        <div className="logo-container">
+        <div className="logo-container flex-1 flex justify-center">
           <div className="flex flex-col items-center">
             {/* KI Kunst Logo */}
             <div className="ki-kunst-logo mb-1">
@@ -33,7 +38,6 @@ const Header = ({ showBackButton, onBack, showLogo }) => {
                 <text x="10" y="20" fontFamily="Arial" fontSize="16" fontWeight="700" fill="#e0d6cc">KI KUNST</text>
               </svg>
             </div>
-            
             {/* Klanginsel Logo */}
             <div className="klanginsel-logo">
               <svg width="180" height="40" viewBox="0 0 240 60" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -44,6 +48,11 @@ const Header = ({ showBackButton, onBack, showLogo }) => {
           </div>
         </div>
       )}
+
+      {/* Right Side - Settings Menu */}
+      <div className="flex items-center">
+        <SettingsMenu />
+      </div>
     </motion.header>
   );
 };

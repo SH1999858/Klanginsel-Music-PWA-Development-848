@@ -1,16 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { requestWakeLock } from '../registerSW';
+import TrackList from './TrackList';
 
-const { FiPlay, FiPause, FiSkipBack, FiSkipForward, FiMusic } = FiIcons;
+const { FiPlay, FiPause, FiSkipBack, FiSkipForward, FiMusic, FiList } = FiIcons;
 
-const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack }) => {
+const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, trackList }) => {
   const [currentTrack, setCurrentTrack] = useState(1);
   const [trackTitle, setTrackTitle] = useState('Loading...');
   const [isWidgetReady, setIsWidgetReady] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [showTrackList, setShowTrackList] = useState(false);
   const widgetRef = useRef(null);
   const wakeLockRef = useRef(null);
 
@@ -52,6 +54,20 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack }) => {
                 setTrackTitle(`${playlist.name} Playlist`);
               }
             });
+
+            // Get all tracks in the playlist
+            widgetRef.current.getSounds((sounds) => {
+              if (sounds && Array.isArray(sounds)) {
+                const tracks = sounds.map((sound, index) => ({
+                  id: sound.id,
+                  title: sound.title,
+                  index: index + 1,
+                  duration: sound.duration,
+                  artist: sound.user ? sound.user.username : 'Unknown Artist'
+                }));
+                setTrackList(tracks);
+              }
+            });
           });
 
           widgetRef.current.bind(window.SC.Widget.Events.PLAY, () => {
@@ -62,6 +78,14 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack }) => {
             widgetRef.current.getCurrentSound((sound) => {
               if (sound) {
                 setTrackTitle(sound.title);
+                
+                // Update current track index
+                widgetRef.current.getSounds((sounds) => {
+                  const currentIndex = sounds.findIndex(s => s.id === sound.id);
+                  if (currentIndex !== -1) {
+                    setCurrentTrack(currentIndex + 1);
+                  }
+                });
               }
             });
             
@@ -113,7 +137,7 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack }) => {
         wakeLockRef.current = null;
       }
     };
-  }, [playlist.url, playlist.name]);
+  }, [playlist.url, playlist.name, setTrackList]);
 
   // Setup Media Session API
   useEffect(() => {
@@ -163,7 +187,7 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack }) => {
 
     try {
       widgetRef.current.next();
-      setCurrentTrack(prev => prev + 1);
+      setCurrentTrack(prev => Math.min(prev + 1, trackList.length));
     } catch (error) {
       console.error('Error skipping to next track:', error);
     }
@@ -183,6 +207,24 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack }) => {
     }
   };
 
+  const handleTrackSelect = (index) => {
+    if (!isWidgetReady || !widgetRef.current) {
+      return;
+    }
+
+    try {
+      widgetRef.current.skip(index);
+      setCurrentTrack(index + 1);
+      setShowTrackList(false);
+    } catch (error) {
+      console.error('Error selecting track:', error);
+    }
+  };
+
+  const toggleTrackList = () => {
+    setShowTrackList(prev => !prev);
+  };
+
   return (
     <div className="flex flex-col min-h-[calc(100vh-80px)]">
       {/* SoundCloud iframe */}
@@ -200,57 +242,55 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack }) => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="text-center mb-8"
-        >
-          <div
-            className="w-32 h-32 mx-auto mb-6 rounded-full flex items-center justify-center border-4 shadow-lg"
-            style={{ backgroundColor: `#1f1f1f`, borderColor: `${playlist.color}80` }}
-          >
-            <SafeIcon icon={FiMusic} className="text-5xl" style={{ color: playlist.color }} />
-          </div>
-          <h3 className="text-2xl font-light text-[#e0d6cc] mb-2">
-            {playlist.name} Vibes
-          </h3>
-          <p className="text-[#a09a92] text-sm">
-            Track {currentTrack}
-          </p>
-        </motion.div>
-
-        {/* Loading/Status indicator */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          className="mb-6"
-        >
-          <div className="flex items-center space-x-2">
+      {showTrackList ? (
+        <div className="flex-1 flex flex-col">
+          <TrackList 
+            tracks={trackList} 
+            currentTrack={currentTrack - 1} 
+            onSelect={handleTrackSelect}
+            onClose={toggleTrackList}
+            playlistName={playlist.name}
+            themeColor={playlist.color}
+          />
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center p-6">
+          <div className="text-center mb-8">
             <div
-              className={`w-2 h-2 rounded-full ${
-                isLoading ? 'animate-pulse' : isPlaying ? 'animate-pulse' : ''
-              }`}
-              style={{ 
-                backgroundColor: isLoading ? '#6b7280' : isPlaying ? playlist.color : '#6b7280' 
-              }}
-            />
-            <span className="text-sm text-[#a09a92]">
-              {isLoading ? 'Loading...' : isPlaying ? 'Playing' : 'Paused'}
-            </span>
+              className="w-32 h-32 mx-auto mb-6 rounded-full flex items-center justify-center border-4 shadow-lg"
+              style={{ backgroundColor: `#1f1f1f`, borderColor: `${playlist.color}80` }}
+            >
+              <SafeIcon icon={FiMusic} className="text-5xl" style={{ color: playlist.color }} />
+            </div>
+            <h3 className="text-2xl font-light text-[#e0d6cc] mb-2">
+              {playlist.name} Vibes
+            </h3>
+            <p className="text-[#a09a92] text-sm">
+              Track {currentTrack} of {trackList.length || '?'}
+            </p>
           </div>
-        </motion.div>
-      </div>
+
+          {/* Loading/Status indicator */}
+          <div className="mb-6">
+            <div className="flex items-center space-x-2">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  isLoading ? 'animate-pulse' : isPlaying ? 'animate-pulse' : ''
+                }`}
+                style={{ 
+                  backgroundColor: isLoading ? '#6b7280' : isPlaying ? playlist.color : '#6b7280' 
+                }}
+              />
+              <span className="text-sm text-[#a09a92]">
+                {isLoading ? 'Loading...' : isPlaying ? 'Playing' : 'Paused'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Controls */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.6 }}
-        className="p-6 border-t border-[#333333]"
-      >
+      <div className="p-6 border-t border-[#333333]">
         <div className="flex items-center justify-center space-x-6">
           <button
             onClick={handlePrevious}
@@ -294,21 +334,25 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack }) => {
           </button>
         </div>
 
-        {/* Track Title Display */}
-        <motion.div 
-          className="mt-6 text-center px-4"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.8 }}
-        >
+        {/* Track Title and Tracklist Button */}
+        <div className="mt-6 text-center px-4">
           <div className="bg-[#252525] p-4 rounded-lg shadow-md border border-[#333333]">
-            <h4 className="text-sm text-[#a09a92] mb-1">Now Playing</h4>
+            <div className="flex justify-between items-center mb-1">
+              <h4 className="text-sm text-[#a09a92]">Now Playing</h4>
+              <button 
+                onClick={toggleTrackList}
+                className="text-[#a09a92] hover:text-[#e0d6cc] p-1 rounded-full transition-colors duration-200"
+                disabled={!isWidgetReady || trackList.length === 0}
+              >
+                <SafeIcon icon={FiList} className="text-lg" />
+              </button>
+            </div>
             <p className="text-[#e0d6cc] font-medium text-lg truncate">
               {trackTitle}
             </p>
           </div>
-        </motion.div>
-      </motion.div>
+        </div>
+      </div>
     </div>
   );
 };

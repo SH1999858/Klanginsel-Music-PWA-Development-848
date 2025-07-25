@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PlaylistSelector from './components/PlaylistSelector';
 import MusicPlayer from './components/MusicPlayer';
@@ -21,6 +21,7 @@ const playlists = {
 function App() {
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [trackList, setTrackList] = useState([]);
   
   const handlePlaylistSelect = (playlistKey) => {
     setSelectedPlaylist(playlistKey);
@@ -39,34 +40,34 @@ function App() {
         showLogo={true} 
       />
       
-      <AnimatePresence mode="wait">
-        {!selectedPlaylist ? (
-          <motion.div
-            key="selector"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
-          >
-            <PlaylistSelector playlists={playlists} onSelect={handlePlaylistSelect} />
-          </motion.div>
-        ) : (
-          <motion.div
-            key="player"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
-          >
-            <MusicPlayer 
-              playlist={playlists[selectedPlaylist]} 
-              isPlaying={isPlaying} 
-              setIsPlaying={setIsPlaying} 
-              onBack={handleBack} 
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {!selectedPlaylist ? (
+        <motion.div
+          key="selector"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.3 }}
+        >
+          <PlaylistSelector playlists={playlists} onSelect={handlePlaylistSelect} />
+        </motion.div>
+      ) : (
+        <motion.div
+          key="player"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.3 }}
+        >
+          <MusicPlayer 
+            playlist={playlists[selectedPlaylist]} 
+            isPlaying={isPlaying} 
+            setIsPlaying={setIsPlaying} 
+            onBack={handleBack} 
+            setTrackList={setTrackList}
+            trackList={trackList}
+          />
+        </motion.div>
+      )}
     </div>
   );
 }
