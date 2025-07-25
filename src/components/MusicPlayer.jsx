@@ -5,16 +5,64 @@ import * as FiIcons from 'react-icons/fi';
 import { requestWakeLock } from '../registerSW';
 import TrackList from './TrackList';
 
-const { FiPlay, FiPause, FiSkipBack, FiSkipForward, FiMusic, FiList } = FiIcons;
+const { FiPlay, FiPause, FiSkipBack, FiSkipForward, FiMusic, FiList, FiShuffle } = FiIcons;
 
-const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, trackList }) => {
+const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, trackList, isShuffleEnabled }) => {
   const [currentTrack, setCurrentTrack] = useState(1);
   const [trackTitle, setTrackTitle] = useState('Loading...');
   const [isWidgetReady, setIsWidgetReady] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showTrackList, setShowTrackList] = useState(false);
+  const [shuffleHistory, setShuffleHistory] = useState([]);
+  const [currentShuffleIndex, setCurrentShuffleIndex] = useState(0);
   const widgetRef = useRef(null);
   const wakeLockRef = useRef(null);
+
+  // Generate shuffle order for tracks
+  const generateShuffleOrder = (trackCount) => {
+    const indices = Array.from({ length: trackCount }, (_, i) => i);
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+    return indices;
+  };
+
+  // Get next track index based on shuffle mode
+  const getNextTrackIndex = (currentIndex, trackCount) => {
+    if (!isShuffleEnabled) {
+      return (currentIndex + 1) % trackCount;
+    }
+
+    if (shuffleHistory.length === 0) {
+      const newOrder = generateShuffleOrder(trackCount);
+      setShuffleHistory(newOrder);
+      setCurrentShuffleIndex(0);
+      return newOrder[0];
+    }
+
+    const nextIndex = (currentShuffleIndex + 1) % shuffleHistory.length;
+    setCurrentShuffleIndex(nextIndex);
+    return shuffleHistory[nextIndex];
+  };
+
+  // Get previous track index based on shuffle mode
+  const getPreviousTrackIndex = (currentIndex, trackCount) => {
+    if (!isShuffleEnabled) {
+      return currentIndex === 0 ? trackCount - 1 : currentIndex - 1;
+    }
+
+    if (shuffleHistory.length === 0) {
+      const newOrder = generateShuffleOrder(trackCount);
+      setShuffleHistory(newOrder);
+      setCurrentShuffleIndex(0);
+      return newOrder[0];
+    }
+
+    const prevIndex = currentShuffleIndex === 0 ? shuffleHistory.length - 1 : currentShuffleIndex - 1;
+    setCurrentShuffleIndex(prevIndex);
+    return shuffleHistory[prevIndex];
+  };
 
   // Initialize SoundCloud Widget
   useEffect(() => {
@@ -22,7 +70,6 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
       if (window.SC && window.SC.Widget) {
         return Promise.resolve();
       }
-      
       return new Promise((resolve) => {
         const script = document.createElement('script');
         script.src = 'https://w.soundcloud.com/player/api.js';
@@ -35,29 +82,19 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
     const initializeWidget = async () => {
       try {
         await loadWidgetAPI();
-        
         const iframe = document.getElementById('soundcloud-iframe');
         if (iframe && window.SC && window.SC.Widget) {
           widgetRef.current = window.SC.Widget(iframe);
-          
+
           // Set up event listeners
           widgetRef.current.bind(window.SC.Widget.Events.READY, () => {
             console.log('SoundCloud widget ready');
             setIsWidgetReady(true);
             setIsLoading(false);
-            
-            // Get initial track info
-            widgetRef.current.getCurrentSound((sound) => {
-              if (sound) {
-                setTrackTitle(sound.title);
-              } else {
-                setTrackTitle(`${playlist.name} Playlist`);
-              }
-            });
 
-            // Get all tracks in the playlist
+            // Get all tracks in the playlist first
             widgetRef.current.getSounds((sounds) => {
-              if (sounds && Array.isArray(sounds)) {
+              if (sounds && Array.isArray(sounds) && sounds.length > 0) {
                 const tracks = sounds.map((sound, index) => ({
                   id: sound.id,
                   title: sound.title,
@@ -66,6 +103,37 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
                   artist: sound.user ? sound.user.username : 'Unknown Artist'
                 }));
                 setTrackList(tracks);
+
+                // Initialize shuffle order if enabled
+                if (isShuffleEnabled) {
+                  const shuffleOrder = generateShuffleOrder(tracks.length);
+                  setShuffleHistory(shuffleOrder);
+                  setCurrentShuffleIndex(0);
+                  // Jump to first shuffled track
+                  const firstTrack = shuffleOrder[0];
+                  widgetRef.current.skip(firstTrack);
+                  setCurrentTrack(firstTrack + 1);
+                  setTrackTitle(tracks[firstTrack].title);
+                } else {
+                  // Get current track info for normal mode
+                  widgetRef.current.getCurrentSound((sound) => {
+                    if (sound) {
+                      setTrackTitle(sound.title);
+                      const currentIndex = sounds.findIndex(s => s.id === sound.id);
+                      if (currentIndex !== -1) {
+                        setCurrentTrack(currentIndex + 1);
+                      }
+                    } else {
+                      // Fallback to first track
+                      setTrackTitle(tracks[0].title);
+                      setCurrentTrack(1);
+                    }
+                  });
+                }
+              } else {
+                // Fallback if no tracks found
+                setTrackTitle(`${playlist.name} Playlist`);
+                setCurrentTrack(1);
               }
             });
           });
@@ -73,22 +141,23 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
           widgetRef.current.bind(window.SC.Widget.Events.PLAY, () => {
             console.log('SoundCloud widget playing');
             setIsPlaying(true);
-            
+
             // Get current track info
             widgetRef.current.getCurrentSound((sound) => {
               if (sound) {
                 setTrackTitle(sound.title);
-                
                 // Update current track index
                 widgetRef.current.getSounds((sounds) => {
-                  const currentIndex = sounds.findIndex(s => s.id === sound.id);
-                  if (currentIndex !== -1) {
-                    setCurrentTrack(currentIndex + 1);
+                  if (sounds && Array.isArray(sounds)) {
+                    const currentIndex = sounds.findIndex(s => s.id === sound.id);
+                    if (currentIndex !== -1) {
+                      setCurrentTrack(currentIndex + 1);
+                    }
                   }
                 });
               }
             });
-            
+
             // Request wake lock
             requestWakeLock().then(wakeLock => {
               wakeLockRef.current = wakeLock;
@@ -98,7 +167,7 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
           widgetRef.current.bind(window.SC.Widget.Events.PAUSE, () => {
             console.log('SoundCloud widget paused');
             setIsPlaying(false);
-            
+
             // Release wake lock
             if (wakeLockRef.current && !wakeLockRef.current.released) {
               wakeLockRef.current.release();
@@ -125,8 +194,19 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
       } catch (error) {
         console.error('Error initializing SoundCloud widget:', error);
         setIsLoading(false);
+        // Set fallback values
+        setTrackTitle(`${playlist.name} Playlist`);
+        setCurrentTrack(1);
       }
     };
+
+    // Reset state when playlist changes
+    setCurrentTrack(1);
+    setTrackTitle('Loading...');
+    setIsWidgetReady(false);
+    setIsLoading(true);
+    setShuffleHistory([]);
+    setCurrentShuffleIndex(0);
 
     initializeWidget();
 
@@ -138,6 +218,24 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
       }
     };
   }, [playlist.url, playlist.name, setTrackList]);
+
+  // Update shuffle setting when it changes
+  useEffect(() => {
+    if (isWidgetReady && widgetRef.current && trackList.length > 0) {
+      if (isShuffleEnabled) {
+        // Generate new shuffle order when enabling shuffle
+        const shuffleOrder = generateShuffleOrder(trackList.length);
+        setShuffleHistory(shuffleOrder);
+        setCurrentShuffleIndex(0);
+        console.log('Shuffle mode enabled, new order:', shuffleOrder);
+      } else {
+        // Clear shuffle history when disabling shuffle
+        setShuffleHistory([]);
+        setCurrentShuffleIndex(0);
+        console.log('Shuffle mode disabled');
+      }
+    }
+  }, [isShuffleEnabled, isWidgetReady, trackList.length]);
 
   // Setup Media Session API
   useEffect(() => {
@@ -152,7 +250,7 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
           { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
         ]
       });
-      
+
       navigator.mediaSession.setActionHandler('play', handlePlayPause);
       navigator.mediaSession.setActionHandler('pause', handlePlayPause);
       navigator.mediaSession.setActionHandler('previoustrack', handlePrevious);
@@ -180,42 +278,76 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
   };
 
   const handleNext = () => {
-    if (!isWidgetReady || !widgetRef.current) {
-      console.log('Widget not ready for next');
+    if (!isWidgetReady || !widgetRef.current || trackList.length === 0) {
+      console.log('Widget not ready for next or no tracks available');
       return;
     }
 
     try {
-      widgetRef.current.next();
-      setCurrentTrack(prev => Math.min(prev + 1, trackList.length));
+      const currentIndex = currentTrack - 1;
+      const nextIndex = getNextTrackIndex(currentIndex, trackList.length);
+      
+      console.log('Next track:', nextIndex + 1, 'of', trackList.length);
+      
+      widgetRef.current.skip(nextIndex);
+      setCurrentTrack(nextIndex + 1);
+      
+      // Update track title immediately
+      if (trackList[nextIndex]) {
+        setTrackTitle(trackList[nextIndex].title);
+      }
     } catch (error) {
       console.error('Error skipping to next track:', error);
     }
   };
 
   const handlePrevious = () => {
-    if (!isWidgetReady || !widgetRef.current) {
-      console.log('Widget not ready for previous');
+    if (!isWidgetReady || !widgetRef.current || trackList.length === 0) {
+      console.log('Widget not ready for previous or no tracks available');
       return;
     }
 
     try {
-      widgetRef.current.prev();
-      setCurrentTrack(prev => Math.max(1, prev - 1));
+      const currentIndex = currentTrack - 1;
+      const prevIndex = getPreviousTrackIndex(currentIndex, trackList.length);
+      
+      console.log('Previous track:', prevIndex + 1, 'of', trackList.length);
+      
+      widgetRef.current.skip(prevIndex);
+      setCurrentTrack(prevIndex + 1);
+      
+      // Update track title immediately
+      if (trackList[prevIndex]) {
+        setTrackTitle(trackList[prevIndex].title);
+      }
     } catch (error) {
       console.error('Error skipping to previous track:', error);
     }
   };
 
   const handleTrackSelect = (index) => {
-    if (!isWidgetReady || !widgetRef.current) {
+    if (!isWidgetReady || !widgetRef.current || !trackList[index]) {
       return;
     }
 
     try {
       widgetRef.current.skip(index);
       setCurrentTrack(index + 1);
+      setTrackTitle(trackList[index].title);
       setShowTrackList(false);
+
+      // Update shuffle history if in shuffle mode
+      if (isShuffleEnabled) {
+        const currentPos = shuffleHistory.indexOf(index);
+        if (currentPos !== -1) {
+          setCurrentShuffleIndex(currentPos);
+        } else {
+          // If manually selected track is not in shuffle history, add it
+          const newHistory = [...shuffleHistory];
+          newHistory[currentShuffleIndex] = index;
+          setShuffleHistory(newHistory);
+        }
+      }
     } catch (error) {
       console.error('Error selecting track:', error);
     }
@@ -224,6 +356,10 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
   const toggleTrackList = () => {
     setShowTrackList(prev => !prev);
   };
+
+  // Ensure we always have a valid track title
+  const displayTitle = trackTitle || `${playlist.name} Playlist`;
+  const displayTrackNumber = Math.max(1, Math.min(currentTrack, trackList.length || 1));
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-80px)]">
@@ -244,9 +380,9 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
       {/* Main Content */}
       {showTrackList ? (
         <div className="flex-1 flex flex-col">
-          <TrackList 
-            tracks={trackList} 
-            currentTrack={currentTrack - 1} 
+          <TrackList
+            tracks={trackList}
+            currentTrack={currentTrack - 1}
             onSelect={handleTrackSelect}
             onClose={toggleTrackList}
             playlistName={playlist.name}
@@ -266,8 +402,16 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
               {playlist.name} Vibes
             </h3>
             <p className="text-[#a09a92] text-sm">
-              Track {currentTrack} of {trackList.length || '?'}
+              Track {displayTrackNumber} of {trackList.length || '...'}
             </p>
+            
+            {/* Shuffle indicator */}
+            {isShuffleEnabled && (
+              <div className="mt-2 flex items-center justify-center">
+                <SafeIcon icon={FiShuffle} className="text-sm text-[#d4a076] mr-1" />
+                <span className="text-xs text-[#a09a92]">Zufallswiedergabe</span>
+              </div>
+            )}
           </div>
 
           {/* Loading/Status indicator */}
@@ -277,8 +421,12 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
                 className={`w-2 h-2 rounded-full ${
                   isLoading ? 'animate-pulse' : isPlaying ? 'animate-pulse' : ''
                 }`}
-                style={{ 
-                  backgroundColor: isLoading ? '#6b7280' : isPlaying ? playlist.color : '#6b7280' 
+                style={{
+                  backgroundColor: isLoading
+                    ? '#6b7280'
+                    : isPlaying
+                    ? playlist.color
+                    : '#6b7280'
                 }}
               />
               <span className="text-sm text-[#a09a92]">
@@ -294,23 +442,20 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
         <div className="flex items-center justify-center space-x-6">
           <button
             onClick={handlePrevious}
-            disabled={!isWidgetReady}
+            disabled={!isWidgetReady || trackList.length === 0}
             className={`p-3 rounded-full transition-colors duration-200 active:scale-95 shadow-md ${
-              isWidgetReady 
-                ? 'hover:bg-[#333333] text-[#e0d6cc]' 
+              isWidgetReady && trackList.length > 0
+                ? 'hover:bg-[#333333] text-[#e0d6cc]'
                 : 'text-[#666666] cursor-not-allowed'
             }`}
           >
             <SafeIcon icon={FiSkipBack} className="text-2xl" />
           </button>
-          
           <button
             onClick={handlePlayPause}
             disabled={!isWidgetReady}
             className={`p-5 rounded-full transition-all duration-200 shadow-lg ${
-              isWidgetReady 
-                ? 'hover:scale-105 active:scale-95' 
-                : 'opacity-50 cursor-not-allowed'
+              isWidgetReady ? 'hover:scale-105 active:scale-95' : 'opacity-50 cursor-not-allowed'
             }`}
             style={{ backgroundColor: isWidgetReady ? playlist.color : '#666666' }}
           >
@@ -320,13 +465,12 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
               <SafeIcon icon={isPlaying ? FiPause : FiPlay} className="text-3xl text-[#1a1a1a]" />
             )}
           </button>
-          
           <button
             onClick={handleNext}
-            disabled={!isWidgetReady}
+            disabled={!isWidgetReady || trackList.length === 0}
             className={`p-3 rounded-full transition-colors duration-200 active:scale-95 shadow-md ${
-              isWidgetReady 
-                ? 'hover:bg-[#333333] text-[#e0d6cc]' 
+              isWidgetReady && trackList.length > 0
+                ? 'hover:bg-[#333333] text-[#e0d6cc]'
                 : 'text-[#666666] cursor-not-allowed'
             }`}
           >
@@ -339,7 +483,7 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
           <div className="bg-[#252525] p-4 rounded-lg shadow-md border border-[#333333]">
             <div className="flex justify-between items-center mb-1">
               <h4 className="text-sm text-[#a09a92]">Now Playing</h4>
-              <button 
+              <button
                 onClick={toggleTrackList}
                 className="text-[#a09a92] hover:text-[#e0d6cc] p-1 rounded-full transition-colors duration-200"
                 disabled={!isWidgetReady || trackList.length === 0}
@@ -348,7 +492,7 @@ const MusicPlayer = ({ playlist, isPlaying, setIsPlaying, onBack, setTrackList, 
               </button>
             </div>
             <p className="text-[#e0d6cc] font-medium text-lg truncate">
-              {trackTitle}
+              {displayTitle}
             </p>
           </div>
         </div>

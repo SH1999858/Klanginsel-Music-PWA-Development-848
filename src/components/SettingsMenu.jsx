@@ -3,9 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 
-const { FiSettings, FiInfo, FiX } = FiIcons;
+const { FiSettings, FiInfo, FiX, FiShuffle } = FiIcons;
 
-const SettingsMenu = () => {
+const SettingsMenu = ({ isShuffleEnabled, setIsShuffleEnabled }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const menuRef = useRef(null);
@@ -42,6 +42,11 @@ const SettingsMenu = () => {
     setShowAbout(false);
   };
 
+  const toggleShuffle = () => {
+    setIsShuffleEnabled(!isShuffleEnabled);
+    setIsMenuOpen(false);
+  };
+
   return (
     <>
       {/* Settings Button */}
@@ -62,8 +67,23 @@ const SettingsMenu = () => {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -10 }}
               transition={{ duration: 0.2 }}
-              className="absolute right-0 top-full mt-2 w-48 bg-[#252525] border border-[#333333] rounded-lg shadow-lg overflow-hidden z-50"
+              className="absolute right-0 top-full mt-2 w-64 bg-[#252525] border border-[#333333] rounded-lg shadow-lg overflow-hidden z-50"
             >
+              <button
+                onClick={toggleShuffle}
+                className="w-full px-4 py-3 text-left hover:bg-[#333333] transition-colors duration-200 flex items-center justify-between"
+              >
+                <div className="flex items-center space-x-3">
+                  <SafeIcon icon={FiShuffle} className={`text-lg ${isShuffleEnabled ? 'text-[#d4a076]' : 'text-[#a09a92]'}`} />
+                  <span className="text-[#e0d6cc] font-medium">Zufallswiedergabe aktivieren</span>
+                </div>
+                <div className={`w-10 h-5 rounded-full relative ${isShuffleEnabled ? 'bg-[#d4a076]' : 'bg-[#444444]'} transition-colors duration-300`}>
+                  <div 
+                    className={`absolute top-0.5 ${isShuffleEnabled ? 'right-0.5' : 'left-0.5'} w-4 h-4 bg-[#e0d6cc] rounded-full transition-all duration-300`}
+                  />
+                </div>
+              </button>
+              
               <button
                 onClick={handleAboutClick}
                 className="w-full px-4 py-3 text-left hover:bg-[#333333] transition-colors duration-200 flex items-center space-x-3"
