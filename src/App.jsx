@@ -9,12 +9,12 @@ const playlists = {
   chillout: {
     name: 'Chillout',
     url: 'https://soundcloud.com/stephan-herzhauser/sets/chillout',
-    color: '#d4a076'
+    color: '#366dab'
   },
   reggae: {
     name: 'Reggae',
     url: 'https://soundcloud.com/stephan-herzhauser/sets/reggae',
-    color: '#d4a076'
+    color: '#366dab'
   }
 };
 
@@ -43,11 +43,11 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#1a1a1a] text-white overflow-hidden">
-      <Header 
-        showBackButton={!!selectedPlaylist} 
-        onBack={handleBack} 
-        showLogo={true} 
+    <div className="min-h-screen bg-[#1a1a2e] text-white overflow-hidden">
+      <Header
+        showBackButton={!!selectedPlaylist}
+        onBack={handleBack}
+        showLogo={true}
         isShuffleEnabled={isShuffleEnabled}
         setIsShuffleEnabled={setIsShuffleEnabled}
       />
@@ -83,6 +83,6 @@ function App() {
       )}
     </div>
   );
-}
+};
 
 export default App;

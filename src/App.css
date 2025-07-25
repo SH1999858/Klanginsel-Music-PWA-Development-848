@@ -10,7 +10,7 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #1a1a1a;
+  background-color: #1a1a2e;
   overflow-x: hidden;
 }
 
@@ -42,16 +42,16 @@ button {
 }
 
 ::-webkit-scrollbar-track {
-  background: #212121;
+  background: #212130;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333333;
+  background: #333345;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #444444;
+  background: #444455;
 }
 
 /* Animation for pulse effect */
@@ -99,4 +99,9 @@ button {
 
 .shadow-lg {
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.25), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+}
+
+/* Blue theme gradients */
+.bg-gradient-blue {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
 }
